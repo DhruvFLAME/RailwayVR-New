@@ -27,6 +27,10 @@ public class RollercoasterCart : MonoBehaviour
     // Inspector – Movement
     // ─────────────────────────────────────────────
 
+    // ─────────────────────────────────────────────
+    // Inspector – Movement
+    // ─────────────────────────────────────────────
+
     [Header("Movement")]
     [Tooltip("Start moving when the scene plays.")]
     public bool autoStart = true;
@@ -40,6 +44,10 @@ public class RollercoasterCart : MonoBehaviour
     [Tooltip("Constant speed in world-units per second.")]
     [Min(0.01f)]
     public float speed = 5f;
+
+    [Tooltip("Acceleration rate (how fast the cart gains speed).")]
+    [Min(0f)]
+    public float acceleration = 5f;
 
     [Tooltip("Gravity acceleration in world-units per second² (gravity mode only).")]
     public float gravity = 9.81f;
@@ -162,7 +170,7 @@ public class RollercoasterCart : MonoBehaviour
         // Cache the spline length so we can convert world-speed → t-delta efficiently
         _splineLength = splineContainer.CalculateLength();
 
-        _currentSpeed    = speed;
+        _currentSpeed = speed;
         _smoothedRotation = transform.rotation;
 
         // Snap cart to the start of the spline immediately
@@ -184,53 +192,46 @@ public class RollercoasterCart : MonoBehaviour
         // ── Gravity mode ──────────────────────────────────
         if (!constantSpeed)
         {
-            // Sample the spline height at current and next tiny step
-            // to estimate the slope angle.
-            float lookAhead = 0.005f; // small look-ahead in t space
+            float lookAhead = 0.005f;
             float tNext = Mathf.Clamp01(_t + lookAhead);
 
             splineContainer.Spline.Evaluate(_t,    out float3 posA, out _, out _);
             splineContainer.Spline.Evaluate(tNext, out float3 posB, out _, out _);
 
-            // Convert from spline local space to world
             Vector3 worldA = splineContainer.transform.TransformPoint((Vector3)posA);
             Vector3 worldB = splineContainer.transform.TransformPoint((Vector3)posB);
 
-            // Height difference: positive means going down (accelerate)
             float heightDelta = worldA.y - worldB.y;
 
-            // Slope angle drives acceleration (simple energy model)
             float slopeAccel = gravity * Mathf.Sign(heightDelta) *
-                               Mathf.Abs(Mathf.Sin(Mathf.Atan2(heightDelta,
-                                   Vector3.Distance(worldA, worldB))));
+                Mathf.Abs(Mathf.Sin(Mathf.Atan2(heightDelta, Vector3.Distance(worldA, worldB))));
 
-            _currentSpeed += slopeAccel * Time.deltaTime;
-            _currentSpeed  = Mathf.Clamp(_currentSpeed, minSpeed, maxSpeed);
+            float targetSpeed = _currentSpeed + slopeAccel * Time.deltaTime;
+            targetSpeed = Mathf.Clamp(targetSpeed, minSpeed, maxSpeed);
+
+            // Apply acceleration limit
+            _currentSpeed = Mathf.MoveTowards(_currentSpeed, targetSpeed, acceleration * Time.deltaTime);
         }
         else
         {
-            // Constant speed – just use the inspector value
-            _currentSpeed = speed;
+            // Smooth acceleration toward constant speed
+            _currentSpeed = Mathf.MoveTowards(_currentSpeed, speed, acceleration * Time.deltaTime);
         }
 
-        // Convert world-space speed to a change in normalised t
-        // t advances by (speed / splineLength) per second
         float tDelta = (_currentSpeed / _splineLength) * Time.deltaTime;
         _t += tDelta;
 
-        // Handle looping or clamping
         if (_t >= 1f)
         {
             if (loop)
-                _t -= 1f; // wrap around
+                _t -= 1f;
             else
             {
                 _t = 1f;
-                StopCart(); // reached the end
+                StopCart();
             }
         }
     }
-
     /// <summary>
     /// Reads the spline at _t and positions + rotates the cart.
     /// </summary>
