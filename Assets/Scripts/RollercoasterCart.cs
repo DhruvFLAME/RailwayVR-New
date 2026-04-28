@@ -27,10 +27,6 @@ public class RollercoasterCart : MonoBehaviour
     // Inspector – Movement
     // ─────────────────────────────────────────────
 
-    // ─────────────────────────────────────────────
-    // Inspector – Movement
-    // ─────────────────────────────────────────────
-
     [Header("Movement")]
     [Tooltip("Start moving when the scene plays.")]
     public bool autoStart = true;
