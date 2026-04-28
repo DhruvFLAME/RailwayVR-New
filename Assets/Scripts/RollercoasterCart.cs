@@ -56,13 +56,10 @@ public class RollercoasterCart : MonoBehaviour
     public float maxSpeed = 20f;
 
     // ─────────────────────────────────────────────
-    // Inspector – VR / Comfort
+    // Inspector – Motion Control
     // ─────────────────────────────────────────────
 
-    [Header("VR & Comfort")]
-    [Tooltip("Drag the XR Origin (or XR Rig) GameObject here.")]
-    public Transform xrOrigin;
-
+    [Header("Motion Control")]
     [Tooltip("Smooth rotation interpolation speed (lower = smoother, higher = snappier).")]
     [Range(1f, 30f)]
     public float rotationSmoothing = 10f;
@@ -129,7 +126,6 @@ public class RollercoasterCart : MonoBehaviour
 
         AdvanceAlongSpline();
         PositionCartOnSpline();
-        AttachXROrigin();
     }
 
     // ─────────────────────────────────────────────
@@ -270,21 +266,21 @@ public class RollercoasterCart : MonoBehaviour
         transform.rotation = _smoothedRotation;
     }
 
-    /// <summary>
-    /// Snaps the XR Origin to the cart so the player rides inside it.
-    /// The XR Origin's local offset is zeroed so the camera sits at the cart centre.
+        /// <summary>
+    /// Re-reads the spline length and snaps the cart to the start.
+    /// Call this after the underlying spline has been regenerated
+    /// (e.g. the player drew a new track from the platform).
     /// </summary>
-    private void AttachXROrigin()
+    public void ResetToStart()
     {
-        if (xrOrigin == null) return;
+        if (splineContainer == null) return;
 
-        // Parent the XR Origin to the cart once (keeps hierarchy clean)
-        if (xrOrigin.parent != transform)
-        {
-            xrOrigin.SetParent(transform, worldPositionStays: false);
-            xrOrigin.localPosition = Vector3.zero;
-            xrOrigin.localRotation = Quaternion.identity;
-        }
+        _t = 0f;
+        _splineLength    = splineContainer.CalculateLength();
+        _currentSpeed    = speed;
+        _smoothedRotation = transform.rotation;
+
+        PositionCartOnSpline();
     }
 
     // ─────────────────────────────────────────────
@@ -387,4 +383,6 @@ public class RollercoasterCartEditor : Editor
         }
     }
 }
+
+
 #endif

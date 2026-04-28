@@ -11,6 +11,7 @@
 
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.Splines;
 using Unity.Mathematics;
 
@@ -33,7 +34,7 @@ public class VRTrackDrawer : MonoBehaviour
 
     [Header("Drawing Settings")]
     [Tooltip("Minimum distance the controller must move before a new point is recorded.")]
-    public float minPointDistance = 0.1f;
+    public float minPointDistance = 0.0f;
 
     [Tooltip("Controls how curved/smooth the generated tangents are. Higher = wider arcs.")]
     public float tangentStrength = 0.5f;
@@ -47,9 +48,39 @@ public class VRTrackDrawer : MonoBehaviour
     public Color previewColor = new Color(0.2f, 0.8f, 1f, 1f);
     public float previewWidth = 0.03f;
 
-    [Header("Input (Legacy / XR fallback)")]
-    [Tooltip("Keyboard key that simulates the VR trigger — useful for testing in editor Play mode.")]
-    public KeyCode debugTriggerKey = KeyCode.Space;
+[Header("Input")]
+[Tooltip("Bind to controller trigger, e.g. <XRController>{RightHand}/triggerPressed.")]
+public InputActionProperty triggerAction;
+
+[Tooltip("Editor fallback — hold this key to draw without a headset.")]
+public KeyCode debugTriggerKey = KeyCode.Space;
+
+private void OnEnable()
+{
+    var action = triggerAction.action;
+    if (action != null)
+    {
+        action.started  += OnTriggerStarted;
+        action.canceled += OnTriggerCanceled;
+        action.Enable();
+    }
+}
+
+private void OnDisable()
+{
+    var action = triggerAction.action;
+    if (action != null)
+    {
+        action.started  -= OnTriggerStarted;
+        action.canceled -= OnTriggerCanceled;
+        action.Disable();
+    }
+}
+
+private void OnTriggerStarted (UnityEngine.InputSystem.InputAction.CallbackContext _) => StartDrawing();
+private void OnTriggerCanceled(UnityEngine.InputSystem.InputAction.CallbackContext _) => StopDrawing();
+
+// Keep HandleDebugInput as the keyboard fallback — it still works in Update.    public KeyCode debugTriggerKey = KeyCode.Space;
 
     // ─────────────────────────────────────────────────────────
     // Private state
@@ -125,6 +156,24 @@ public class VRTrackDrawer : MonoBehaviour
         GenerateTrack();
     }
 
+    /// <summary>True while a draw session is in progress.</summary>
+    public bool IsDrawing => _isDrawing;
+
+    /// <summary>
+    /// Aborts the current draw session WITHOUT committing a spline.
+    /// Use this when the player teleports or switches perspective mid-draw,
+    /// so the recorded points (which span two unrelated spaces) don't pollute the track.
+    /// </summary>
+    public void CancelDrawing()
+    {
+        if (!_isDrawing) return;
+
+        _isDrawing = false;
+        _points.Clear();
+        _lineRenderer.positionCount = 0;
+
+        Debug.Log("[VRTrackDrawer] Drawing cancelled (perspective switch).");
+    }
     // ─────────────────────────────────────────────────────────
     // Recording
     // ─────────────────────────────────────────────────────────
